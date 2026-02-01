@@ -193,13 +193,45 @@ class TestThreatAnalyzer:
 
         return PromptLoader(tmp_path / "prompts")
 
-    def test_analyze_finds_risks(self, mock_llm, prompt_loader):
-        """Should process chunks and find risks."""
-        # Configure mock responses
-        risks_response = json.dumps([
-            {"riskFactor": "test risk", "source": ["line 1"]}
+    @pytest.fixture
+    def sample_risks_response(self):
+        """Sample LLM response with multiple risks."""
+        return json.dumps([
+            {
+                "riskFactor": "User input directly concatenated into prompt without sanitization",
+                "source": ["api/chat.py:45", "api/chat.py:67"]
+            },
+            {
+                "riskFactor": "No input validation before LLM call",
+                "source": ["services/llm_service.py:23"]
+            },
+            {
+                "riskFactor": "System prompt can be overridden by user input",
+                "source": ["handlers/completion.py:89", "handlers/completion.py:112"]
+            }
         ])
-        mock_llm.complete.return_value = risks_response
+
+    @pytest.fixture
+    def sample_mitigations_response(self):
+        """Sample LLM response with multiple mitigations."""
+        return json.dumps([
+            {
+                "mitigationFactor": "Input sanitization function removes special characters",
+                "source": ["utils/sanitize.py:12", "utils/sanitize.py:34"]
+            },
+            {
+                "mitigationFactor": "Rate limiting prevents abuse",
+                "source": ["middleware/rate_limit.py:56"]
+            },
+            {
+                "mitigationFactor": "Content filtering blocks malicious patterns",
+                "source": ["filters/content_filter.py:78", "filters/content_filter.py:92"]
+            }
+        ])
+
+    def test_analyze_finds_risks(self, mock_llm, prompt_loader, sample_risks_response):
+        """Should process chunks and find multiple risks."""
+        mock_llm.complete.return_value = sample_risks_response
 
         analyzer = ThreatAnalyzer(mock_llm, prompt_loader)
 
@@ -208,16 +240,14 @@ class TestThreatAnalyzer:
             threat_type=ThreatType.PROMPT_INJECTION,
         )
 
-        assert len(state.risks) > 0
+        assert len(state.risks) == 3
+        assert state.risks[0].risk_factor == "User input directly concatenated into prompt without sanitization"
+        assert len(state.risks[0].source) == 2
         assert state.threat_type == ThreatType.PROMPT_INJECTION
 
-    def test_analyze_finds_mitigations(self, mock_llm, prompt_loader):
-        """Should process chunks and find mitigations."""
-        # Configure mock responses
-        mitigations_response = json.dumps([
-            {"mitigationFactor": "test mitigation", "source": ["line 1"]}
-        ])
-        mock_llm.complete.return_value = mitigations_response
+    def test_analyze_finds_mitigations(self, mock_llm, prompt_loader, sample_mitigations_response):
+        """Should process chunks and find multiple mitigations."""
+        mock_llm.complete.return_value = sample_mitigations_response
 
         analyzer = ThreatAnalyzer(mock_llm, prompt_loader)
 
@@ -226,7 +256,9 @@ class TestThreatAnalyzer:
             threat_type=ThreatType.PROMPT_INJECTION,
         )
 
-        assert len(state.mitigations) > 0
+        assert len(state.mitigations) == 3
+        assert state.mitigations[0].mitigation_factor == "Input sanitization function removes special characters"
+        assert len(state.mitigations[1].source) == 1
 
     def test_analyze_handles_empty_response(self, mock_llm, prompt_loader):
         """Should handle empty LLM responses."""
