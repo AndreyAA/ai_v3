@@ -18,3 +18,10 @@ service:
 logging:
   level: "INFO"
   format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+# Chunking settings
+chunking:
+  # Maximum characters per chunk
+  chunk_size: 1000
+  # Overlap between adjacent chunks
+  overlap: 100

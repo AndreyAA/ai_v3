@@ -5,7 +5,13 @@ from pathlib import Path
 
 import pytest
 
-from file_processor.config import Config, DirectoriesConfig, LoggingConfig, ServiceConfig
+from file_processor.config import (
+    ChunkingConfig,
+    Config,
+    DirectoriesConfig,
+    LoggingConfig,
+    ServiceConfig,
+)
 from file_processor.handlers import CharCounterHandler
 from file_processor.service import FileProcessorService
 
@@ -28,6 +34,7 @@ def test_config(temp_dir: Path) -> Config:
         ),
         service=ServiceConfig(poll_interval_sec=1),
         logging=LoggingConfig(level="DEBUG", format="%(message)s"),
+        chunking=ChunkingConfig(chunk_size=1000, overlap=100),
     )
 
 

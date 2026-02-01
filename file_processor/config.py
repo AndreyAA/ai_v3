@@ -35,6 +35,14 @@ class ServiceConfig:
 
 
 @dataclass
+class ChunkingConfig:
+    """Chunking configuration."""
+
+    chunk_size: int
+    overlap: int
+
+
+@dataclass
 class LoggingConfig:
     """Logging configuration."""
 
@@ -49,6 +57,7 @@ class Config:
     directories: DirectoriesConfig
     service: ServiceConfig
     logging: LoggingConfig
+    chunking: ChunkingConfig
 
 
 def load_config(config_path: Optional[str] = None) -> Config:
@@ -87,8 +96,15 @@ def load_config(config_path: Optional[str] = None) -> Config:
         format=logging_raw["format"],
     )
 
+    chunking_raw = raw_config["chunking"]
+    chunking = ChunkingConfig(
+        chunk_size=chunking_raw["chunk_size"],
+        overlap=chunking_raw["overlap"],
+    )
+
     return Config(
         directories=directories,
         service=service,
         logging=logging_config,
+        chunking=chunking,
     )
