@@ -12,7 +12,13 @@ class ProcessingStage(Enum):
 
     INIT = "INIT"
     CHUNKING = "CHUNK"
-    # Future stages will be added here
+    # Threat analysis stages
+    FIND_RISKS = "RISK"
+    FIND_RISKS_CHECK = "RISKC"
+    FIND_RISKS_SUMMARIZATION = "RISKS"
+    FIND_MITIGATIONS = "MITG"
+    FIND_MITIGATIONS_CHECK = "MITGC"
+    FIND_MITIGATIONS_SUMMARIZATION = "MITGS"
 
 
 @dataclass
