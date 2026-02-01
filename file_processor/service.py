@@ -7,7 +7,9 @@ from pathlib import Path
 from typing import List, Optional
 
 from file_processor.config import Config
+from file_processor.context import set_global_stage_callback
 from file_processor.handlers.base import BaseFileHandler
+from file_processor.queue_state import QueueState
 
 logger = logging.getLogger(__name__)
 
@@ -25,17 +27,29 @@ class FileProcessorService:
     6. Waits for the configured interval before checking again
     """
 
-    def __init__(self, config: Config, handler: BaseFileHandler) -> None:
+    def __init__(
+        self,
+        config: Config,
+        handler: BaseFileHandler,
+        queue_state: Optional[QueueState] = None,
+    ) -> None:
         """
         Initialize the service.
 
         Args:
             config: Service configuration.
             handler: File handler to use for processing.
+            queue_state: Optional queue state tracker for monitoring.
         """
         self._config = config
         self._handler = handler
         self._running = False
+        self._queue_state = queue_state or QueueState()
+
+    @property
+    def queue_state(self) -> QueueState:
+        """Get queue state for monitoring."""
+        return self._queue_state
 
     @property
     def dirs(self):
@@ -118,27 +132,34 @@ class FileProcessorService:
         """
         logger.info("Starting processing of: %s", file_path.name)
 
-        # Reset data directory
-        self._reset_data_dir()
+        # Mark file as being processed
+        self._queue_state.start_processing(file_path)
 
-        # Copy file to data directory
-        data_file_path = self._copy_to_data_dir(file_path)
+        try:
+            # Reset data directory
+            self._reset_data_dir()
 
-        # Process the file
-        result = self._handler.process(data_file_path)
-        logger.info(
-            "Handler %s completed with result: %s",
-            self._handler.get_name(),
-            result
-        )
+            # Copy file to data directory
+            data_file_path = self._copy_to_data_dir(file_path)
 
-        # Move to processed
-        self._move_to_processed(data_file_path)
+            # Process the file
+            result = self._handler.process(data_file_path)
+            logger.info(
+                "Handler %s completed with result: %s",
+                self._handler.get_name(),
+                result
+            )
 
-        # Remove original from watch directory
-        self._remove_original(file_path)
+            # Move to processed
+            self._move_to_processed(data_file_path)
 
-        logger.info("Finished processing: %s", file_path.name)
+            # Remove original from watch directory
+            self._remove_original(file_path)
+
+            logger.info("Finished processing: %s", file_path.name)
+        finally:
+            # Mark processing as finished
+            self._queue_state.finish_processing()
 
     def run_once(self) -> bool:
         """
@@ -147,6 +168,9 @@ class FileProcessorService:
         Returns:
             True if a file was processed, False otherwise.
         """
+        # Update queue state
+        self._queue_state.update_queue(self.dirs.watch_dir)
+
         files = self._get_files_in_watch_dir()
 
         if not files:
@@ -165,6 +189,9 @@ class FileProcessorService:
         """
         self._running = True
         poll_interval = self._config.service.poll_interval_sec
+
+        # Set up stage change callback for monitoring
+        set_global_stage_callback(self._queue_state.update_stage)
 
         logger.info(
             "Starting FileProcessorService (handler: %s, poll interval: %ds)",
@@ -197,3 +224,4 @@ class FileProcessorService:
         """Stop the service."""
         logger.info("Stopping FileProcessorService")
         self._running = False
+        set_global_stage_callback(None)
